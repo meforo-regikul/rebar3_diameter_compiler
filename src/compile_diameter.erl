@@ -108,10 +108,22 @@ compile_dia(Source, Target, {State, AppDir, EbinDir}) ->
             FileName = dia_filename(Source, Spec),
             _ = diameter_codegen:from_dict(FileName, Spec, Opts, erl),
             _ = diameter_codegen:from_dict(FileName, Spec, IncludeOpts, hrl),
-            ErlCOpts = [{outdir, EbinDir}] ++
-                        rebar_state:get(State, erl_opts, []),
-            {Result, _} = compile:file(Target, ErlCOpts),
-            Result;
+            ErlCOpts = [
+              {outdir, EbinDir},
+              verbose,
+              report_errors,
+              report_warnings |
+              rebar_state:get(State, erl_opts, [])
+            ],
+            CompileRet = compile:file(Target, ErlCOpts),
+            case CompileRet of
+              error ->
+                rebar_api:error("Can't compile ~p", [FileName]),
+                error;
+              {ok, Module} ->
+                rebar_api:debug("Load module ~p: ~p", [Module, code:load_abs(EbinDir ++ "/" ++ atom_to_list(Module))]),
+                ok
+            end;
         {error, Reason} ->
             rebar_api:error(
                 "Compiling ~s failed: ~s~n",
